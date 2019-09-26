@@ -3,7 +3,10 @@ This repository provides code to accompany NIPS2019 paper __Deep Gamblers: Learn
 
 The code aims to provide an implementation of the method introduced and only supports vgg16 and vgg16_bn models unless manually modified (it defaults to vgg16_bn). 
    
-## Use
+## Method  
+
+   
+## Use  
 To train models for rewards (payoffs) o1, o2, o3 respectively,     
   
 ```python3 main.py --rewards o1 o2 o3 --dataset cifar10/svhn/catsdogs```   
