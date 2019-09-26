@@ -4,10 +4,16 @@ This repository provides code to accompany NIPS2019 paper __Deep Gamblers: Learn
 The code aims to provide an implementation of the method introduced and only supports vgg16 and vgg16_bn models unless manually modified (it defaults to vgg16_bn). 
    
 ## Method  
+Conventional deep learning image classification minimizes a cross entropy loss measured between the network prediction and the realistic training data. To evaluate the AI's uncertainty about its own prediction, we give it an additional prediction choice corresponding to abstention, and transform the original prediction problem to a gambling problem. The AI choose some prediction choices to bet on and additionally reserve a portion of its money on the abstention choice, and then the AI is trained to maximize the doubling rate of its money. This idea is inspired by portfolio theory.   
 
+The training loss for a labelled data `(x,y)` is therefore  
+
+```l(x,y)=-log(o*f(x)_y + f(x)_{m+1})```  
+   
+where `o` is the reward (payoff) of the prediction on label `y`, and there are `m` categories to choose from and `f(x)_{m+1}` is the prediction on abstention. `f(x)` is a distribution satisfying `\sum_i f(x)_i = 1` 
    
 ## Use  
-To train models for rewards (payoffs) o1, o2, o3 respectively,     
+To train models for correct prediction rewards (payoffs) o1, o2, o3 respectively,     
   
 ```python3 main.py --rewards o1 o2 o3 --dataset cifar10/svhn/catsdogs```   
    
