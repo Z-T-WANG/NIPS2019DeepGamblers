@@ -101,6 +101,7 @@ def main():
     if args.dataset == 'cifar10':
         dataset = datasets.CIFAR10
         num_classes = 10
+        input_size = 32
         transform_train = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
@@ -116,6 +117,7 @@ def main():
     elif args.dataset == 'svhn':
         dataset = datasets.SVHN
         num_classes = 10
+        input_size = 32
         transform_train = transforms.Compose([
                 transforms.RandomCrop(32,padding=4),
                 transforms.ToTensor(),
@@ -129,6 +131,7 @@ def main():
         testset = dataset(root='./data/svhn', train=False, download=True, transform=transform_test)
     elif args.dataset == 'catsdogs':
         num_classes = 2
+        input_size = 64
         transform_train = transforms.Compose([
             transforms.RandomCrop(64, padding=6),
             transforms.RandomHorizontalFlip(),
@@ -153,7 +156,7 @@ def main():
     
     # Model
     print("==> creating model '{}'".format(args.arch))
-    model = models.__dict__[args.arch](num_classes=num_classes+1)
+    model = models.__dict__[args.arch](num_classes=num_classes+1, input_size = input_size)
    
     if use_cuda: model = torch.nn.DataParallel(model.cuda())
     cudnn.benchmark = True
