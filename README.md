@@ -1,7 +1,7 @@
 # NIPS2019DeepGamblers
 This repository provides code to accompany NIPS2019 paper __Deep Gamblers: Learning to Abstain with Portfolio Theory__ https://arxiv.org/abs/1907.00208  
 
-The code aims to provide an implementation of the method introduced in the paper and only supports vgg16 and vgg16_bn models unless modified (defaults to vgg16_bn). 
+The code aims to provide an implementation of the method introduced and only supports vgg16 and vgg16_bn models unless manually modified (it defaults to vgg16_bn). 
    
 ## Use
 To train models for rewards (payoffs) o1, o2, o3 respectively     
