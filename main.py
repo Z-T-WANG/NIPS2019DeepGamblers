@@ -45,8 +45,10 @@ parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
 parser.add_argument('--weight-decay', '--wd', default=5e-4, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
-parser.add_argument('-o', '--rewards', dest='rewards', type=float, nargs='+', default=[],
+parser.add_argument('-o', '--rewards', dest='rewards', type=float, nargs='+', default=[2.2],
                     metavar='o', help='The reward o for a correct prediction; Abstention has a reward of 1. Provided parameters would be stored as a list for multiple runs.')
+parser.add_argument('--pretrain', type=int, default=0,
+                    help='Number of pretraining epochs using the cross entropy loss, so that the learning can always start. Note that it defaults to 100 if dataset==cifar10 and reward<6.1, and the results in the paper are reproduced.')
 parser.add_argument('--coverage', type=float, nargs='+',default=[100.,99.,98.,97.,95.,90.,85.,80.,75.,70.,60.,50.,40.,30.,20.,10.],
                     help='the expected coverages used to evaluated the accuracies after abstention')                    
 # Save
@@ -145,8 +147,8 @@ def main():
         trainset = dataset_utils.resized_dataset(trainset, transform_train, resize=64)
         testset = dataset_utils.resized_dataset(testset, transform_test, resize=64)
         
-    trainloader = data.DataLoader(trainset, batch_size=args.train_batch, shuffle=True, num_workers=args.workers)
-    testloader = data.DataLoader(testset, batch_size=args.test_batch, shuffle=False, num_workers=args.workers)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.train_batch, shuffle=True, num_workers=args.workers)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=args.test_batch, shuffle=False, num_workers=args.workers)
     # End of Dataset
     
     # Model
@@ -157,8 +159,8 @@ def main():
     cudnn.benchmark = True
     print('    Total params: %.2fM' % (sum(p.numel() for p in model.parameters())/1000000.0))
 
-    #criterion = nn.CrossEntropyLoss() 
-    # the conventional loss is replaced by the gambler's loss in train() and test() explicitly
+    if args.pretrain: criterion = nn.CrossEntropyLoss() 
+    # the conventional loss is replaced by the gambler's loss in train() and test() explicitly except for pretraining
     optimizer = optim.SGD(model.parameters(), lr=state['lr'], momentum=args.momentum, weight_decay=args.weight_decay)
 
 
@@ -184,17 +186,17 @@ def main():
         train_loss, train_acc = train(trainloader, model, criterion, optimizer, epoch, use_cuda)
         test_loss, test_acc = test(testloader, model, criterion, epoch, use_cuda)
         # save the model
-        filepath = os.path.join(save_path, "{d}".format(epoch+1) + ".pth")
+        filepath = os.path.join(save_path, "{:d}".format(epoch+1) + ".pth")
         torch.save(model, filepath)
         # delete the last saved model if exist
-        last_path = os.path.join(save_path, "{d}".format(epoch) + ".pth")
+        last_path = os.path.join(save_path, "{:d}".format(epoch) + ".pth")
         if os.path.isfile(last_path): os.remove(last_path)
         # append logger file
         logger.append([epoch+1, state['lr'], train_loss, test_loss, 100-train_acc, 100-test_acc])
 
-    filepath = os.path.join(save_path, "{d}".format(args.epochs) + ".pth")
+    filepath = os.path.join(save_path, "{:d}".format(args.epochs) + ".pth")
     torch.save(model, filepath)
-    last_path = os.path.join(save_path, "{d}".format(args.epochs-1) + ".pth")
+    last_path = os.path.join(save_path, "{:d}".format(args.epochs-1) + ".pth")
     if os.path.isfile(last_path): os.remove(last_path)
     logger.plot(['Train Loss', 'Test Loss'])
     savefig(os.path.join(save_path, 'logLoss.eps'))
@@ -226,12 +228,15 @@ def train(trainloader, model, criterion, optimizer, epoch, use_cuda):
 
         # compute output
         outputs = model(inputs)
-        outputs = F.softmax(outputs, dim=1)
-        outputs, reservation = outputs[:,:-1], outputs[:,-1]
-        gain = torch.gather(outputs, dim=1, index=targets.unsqueeze(1)).squeeze()
-        doubling_rate = (gain.add(reservation.div(reward))).log()
+        if epoch >= args.pretrain:
+            outputs = F.softmax(outputs, dim=1)
+            outputs, reservation = outputs[:,:-1], outputs[:,-1]
+            gain = torch.gather(outputs, dim=1, index=targets.unsqueeze(1)).squeeze()
+            doubling_rate = (gain.add(reservation.div(reward))).log()
 
-        loss = -doubling_rate.mean()
+            loss = -doubling_rate.mean()
+        else:
+            loss = criterion(outputs[:,:-1], targets)
 
         # measure accuracy and record loss
         prec1, prec5 = accuracy(outputs.data, targets.data, topk=(1, 5))
@@ -295,16 +300,19 @@ def test(testloader, model, criterion, epoch, use_cuda, evaluation = False):
         abstention_results = []
         with torch.no_grad():
             outputs = model(inputs)
-            outputs = F.softmax(outputs, dim=1)
-            outputs, reservation = outputs[:,:-1], outputs[:,-1]
-            gain = torch.gather(outputs, dim=1, index=targets.unsqueeze(1)).squeeze()
-            doubling_rate = (gain.add(reservation.div(reward))).log()
-            loss = -doubling_rate.mean()
-            
-            # analyze the accuracy at different abstention level
             values, predictions = outputs.data.max(1)
-            abstention_results.extend(zip(list( reservation.numpy() ),list( predictions.eq(targets.data).numpy() )))
-            
+            if epoch >= args.pretrain:
+                outputs = F.softmax(outputs, dim=1)
+                outputs, reservation = outputs[:,:-1], outputs[:,-1]
+                # analyze the accuracy at different abstention level
+                abstention_results.extend(zip(list( reservation.numpy() ),list( predictions.eq(targets.data).numpy() )))
+                # calculate loss
+                gain = torch.gather(outputs, dim=1, index=targets.unsqueeze(1)).squeeze()
+                doubling_rate = (gain.add(reservation.div(reward))).log()
+                loss = -doubling_rate.mean()
+            else:
+                loss = criterion(outputs[:,:-1], targets)
+
             # measure accuracy and record loss
             prec1, prec5 = accuracy(outputs.data, targets.data, topk=(1, 5))
             losses.update(loss.item(), inputs.size(0))
@@ -329,15 +337,16 @@ def test(testloader, model, criterion, epoch, use_cuda, evaluation = False):
                     )
         bar.next()
     bar.finish()
-    # sort the abstention results according to their reservations, from high to low
-    abstention_results.sort(key = lambda x: x[0], reverse=True)
-    # get the "correct or not" list for the sorted results
-    sorted_correct = list(map(lambda x: int(x[1]), abstention_results))
-    size = len(testloader)
-    print('accracy of coverage ',end='')
-    for coverage in expected_coverage:
-        print('{:.0f}: {:.3f}, '.format(coverage, sum(sorted_correct[int(size/100*coverage):])),end='')
-    print('')
+    if epoch >= args.pretrain:
+    	# sort the abstention results according to their reservations, from high to low
+    	abstention_results.sort(key = lambda x: x[0], reverse=True)
+    	# get the "correct or not" list for the sorted results
+    	sorted_correct = list(map(lambda x: int(x[1]), abstention_results))
+    	size = len(testloader)
+    	print('accracy of coverage ',end='')
+    	for coverage in expected_coverage:
+    	    print('{:.0f}: {:.3f}, '.format(coverage, sum(sorted_correct[int(size/100*coverage):])),end='')
+    	print('')
     return (losses.avg, top1.avg)
 
 def adjust_learning_rate(optimizer, epoch):
@@ -416,7 +425,7 @@ def save_data():
         save_path = base_path+'o={:.2f}'.format(reward)
         if os.path.isfile(os.path.join(save_path, 'coverage VS err.csv')):
             f = open(os.path.join(save_path, 'coverage VS err.csv') ,'r')
-        else: print('no file exists at {}'.format(os.path.isfile(os.path.join(save_path, 'coverage VS err.csv')); continue
+        else: print('no file exists at {}'.format(os.path.join(save_path, 'coverage VS err.csv'))); continue
         content = f.read()
         lines = content.split('\n')
         save.write('o={:.2f},'.format(reward))
@@ -427,14 +436,20 @@ def save_data():
         f.close()
 
 if __name__ == '__main__':
-    base_path = os.path.join(args.s, args.dataset, args.arch)+'_gambling_'
+    base_path = os.path.join(args.save, args.dataset, args.arch)+'_gambling_'
     baseLR = state['lr']
+    base_pretrain = args.pretrain
     resume_path = ""
     for i in range(len(reward_list)): 
         state['lr'] = baseLR
         reward = reward_list[i]
         save_path = base_path+'o={:.2f}'.format(reward)
-        if args.evaluate: resume_path= os.path.join(save_path,'{d}.pth'.format(args.epochs))
+        if args.evaluate: resume_path= os.path.join(save_path,'{:d}.pth'.format(args.epochs))
+        args.pretrain = base_pretrain
+        
+        # default the pretraining epochs to 100 to reproduce the results in the paper
+        if args.pretrain==0 and reward <6.1 and args.dataset=='cifar10': args.pretrain=100
+        
         main()
     if args.evaluate: save_data()
     
