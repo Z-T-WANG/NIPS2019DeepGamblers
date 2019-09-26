@@ -10,7 +10,7 @@ The training loss for a labelled data `(x,y)` is therefore
 
 ```l(x,y)=-log(o*f(x)_y + f(x)_{m+1})```  
    
-where `o` is the reward (payoff) of the prediction on label `y`, and there are `m` categories to choose from and `f(x)_{m+1}` is the prediction on abstention. `f(x)` is a distribution satisfying `\sum_i f(x)_i = 1` 
+where `o` is the reward (payoff) of the prediction on label `y`, and there are totally `m` categories to predict. `f` is the model output and `f(x)_{m+1}` is its prediction on abstention. `f(x)` is a distribution satisfying `\sum_i f(x)_i = 1` 
    
 ## Use  
 To train models for correct prediction rewards (payoffs) o1, o2, o3 respectively,     
