@@ -1,1 +1,1 @@
-# NIPS2019DeepGamblersPaper
+# NIPS2019DeepGamblers
