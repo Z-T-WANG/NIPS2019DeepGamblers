@@ -10,8 +10,10 @@ The training loss for a labelled data `(x,y)` is therefore
 
 ```l(x,y)=-log(o*f(x)_y + f(x)_{m+1})```  
    
-where `o` is the reward (payoff) of the prediction on label `y`, and there are totally `m` categories to predict. `f` is the model output and `f(x)_{m+1}` is its prediction on abstention. `f(x)` is a distribution satisfying `\sum_i f(x)_i = 1` 
+where `o` is the reward (payoff) of the prediction on label `y`, and there are totally `m` categories to predict. `f` is the model output and `f(x)_{m+1}` is its prediction on abstention. `f(x)` is a distribution satisfying `\sum_i f(x)_i = 1`   
    
+Then, we use the reservation `f(x)_{m+1}` as a disconfidence score to judge whether a data it predicts on is really trustable or not.   
+      
 ## Use  
 To train models for correct prediction rewards (payoffs) o1, o2, o3 respectively,     
   
@@ -24,4 +26,4 @@ To evaluate the validation error and test error of the trained models with speci
 In addition, `--save` argument can be used to specify a path to save trained models and evluate them, and `--pretrain` argument specifies how many epochs are used for pretraining with the conventional cross entropy loss. Pretraining is useful in case the learning does not start due to a low `o` parameter. `--epochs` defaults to 300. When `--dataset` is `cifar10`, `--pretrain` defaults to 100 if `o<6.1` and defaults to 0 otherwise.
    
    
-The code is based on https://github.com/bearpaw/pytorch-classification
+This implementation is based on https://github.com/bearpaw/pytorch-classification
